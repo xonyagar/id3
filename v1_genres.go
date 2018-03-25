@@ -133,7 +133,7 @@ var V1Genres = []string{
 	"Duet",
 	"Punk Rock",
 	"Drum Solo",
-	"A cappella",
+	"A capella",
 	"Euro-House",
 	"Dance Hall",
 	"Goa",

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 )
 
 // V1TagSize is size of ID3v1 and ID3v1.1 tag
@@ -39,27 +38,42 @@ func NewID3V1(f io.ReadSeeker) (*V1, error) {
 
 // Title will return id3v1 title
 func (tag V1) Title() string {
-	return strings.Trim(string(tag[3:33]), string(uint(0)))
+	return trim(string(tag[3:33]))
 }
 
 // Artist will return id3v1 artist
 func (tag V1) Artist() string {
-	return strings.Trim(string(tag[33:63]), string(uint(0)))
+	return trim(string(tag[33:63]))
 }
 
 // Album will return id3v1 album
 func (tag V1) Album() string {
-	return strings.Trim(string(tag[63:93]), string(uint(0)))
+	return trim(string(tag[63:93]))
 }
 
 // Year will return id3v1 year
 func (tag V1) Year() string {
-	return strings.Trim(string(tag[93:97]), string(uint(0)))
+	return trim(string(tag[93:97]))
 }
 
-// Comment will return id3v1 comment
+// Comment will return id3v1 or id3v1.1 comment
 func (tag V1) Comment() string {
-	return strings.Trim(string(tag[97:127]), string(uint(0)))
+	if tag[125] != byte(0) {
+		// V1
+		return trim(string(tag[97:127]))
+	} else {
+		// V1.1
+		return trim(string(tag[97:125]))
+	}
+}
+
+// AlbumTrack will return id3v1.1 album track
+func (tag V1) AlbumTrack() string {
+	if tag[125] == byte(0) {
+		return fmt.Sprintf("%d", int(tag[126]))
+	} else {
+		return ""
+	}
 }
 
 // Genre will return id3v1 genre title
