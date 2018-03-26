@@ -1,4 +1,4 @@
-package id3
+package lib
 
 import (
 	"bytes"
@@ -6,12 +6,19 @@ import (
 	"unicode/utf8"
 )
 
-type Encoding string
+type Encoding struct {
+	Title string
+	Size int
+}
+var Encodings = []Encoding{
+	{"ISO-8859-1", 1},
+	{"UTF-16", 2},
+	{"UTF-16BE", 2},
+	{"UTF-8", 1},
+}
 
-var Encodings = []Encoding{"ISO-8859-1", "UTF-16", "UTF-16BE", "UTF-8"}
-
-func toUTF8(data []byte, enc Encoding) string {
-	switch enc {
+func ToUTF8(data []byte, enc Encoding) string {
+	switch enc.Title {
 	case "ISO-8859-1":
 		buf := make([]rune, len(data))
 		for i, b := range data {

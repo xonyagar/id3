@@ -1,8 +1,8 @@
-package id3
+package v1
 
-// V1Genres is ID3v1 genre codes
+// Genres is ID3v1 genre codes
 // https://de.wikipedia.org/wiki/Liste_der_ID3v1-Genres
-var V1Genres = []string{
+var Genres = []string{
 	"Blues",
 	"Classic Rock",
 	"Country",

@@ -1,4 +1,4 @@
-package id3
+package v22
 
 import (
 	"bytes"
@@ -8,18 +8,20 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
+	"github.com/xonyagar/id3/lib"
+	"regexp"
 )
 
-// V1HeaderSize is size of ID3v2.2, ID3v2.3 and ID3v2.4 tag header
-const V2HeaderSize = 10
+// HeaderSize is size of ID3v2.2 tag header
+const HeaderSize = 10
 
-// V2FrameHeaderSize is size of ID3v2.2 tag frame header
-const V2FrameHeaderSize = 6
+// FrameHeaderSize is size of ID3v2.2 tag frame header
+const FrameHeaderSize = 6
 
 type FrameType int
 
 const (
-	TypeUnknown FrameType = iota
+	TypeUnknown                                FrameType = iota
 	TypeUniqueFileIdentifier
 	TypeTextInformation
 	TypeURLLink
@@ -42,6 +44,7 @@ const (
 	TypeEncryptedMetaFrame
 	TypeAudioEncryption
 	TypeLinkedInformation
+	TypeiTunesCompilationFlag
 )
 
 type Frame interface {
@@ -87,7 +90,7 @@ func (f UniqueFileIdentifierFrame) Identifier() []byte {
 
 type TextInformationFrame struct {
 	frameBase
-	encoding Encoding
+	encoding lib.Encoding
 	text     string
 }
 
@@ -97,7 +100,7 @@ func (f TextInformationFrame) Text() string {
 
 type InvolvedPeopleListFrame struct {
 	frameBase
-	encoding   Encoding
+	encoding   lib.Encoding
 	peopleList []string
 }
 
@@ -140,7 +143,7 @@ func (f EventTimingCodesFrame) TimeStampFormat() TimeStampFormat {
 
 type UnsynchronisedLyricsOrTextTranscriptionFrame struct {
 	frameBase
-	textEncoding      Encoding
+	textEncoding      lib.Encoding
 	language          string
 	contentDescriptor string
 	lyricsOrText      string
@@ -162,7 +165,7 @@ func (f UnsynchronisedLyricsOrTextTranscriptionFrame) LyricsOrText() string {
 
 type CommentsFrame struct {
 	frameBase
-	textEncoding            Encoding
+	textEncoding            lib.Encoding
 	language                string
 	shortContentDescription string
 	theActualText           string
@@ -189,7 +192,7 @@ func (f CommentsFrame) TheActualText() string {
 type PictureType int
 
 const (
-	PictureTypeOther PictureType = iota
+	PictureTypeOther                     PictureType = iota
 	PictureType32x32
 	PictureTypeOtherFileIcon
 	PictureTypeCoverFront
@@ -214,7 +217,7 @@ const (
 
 type AttachedPictureFrame struct {
 	frameBase
-	textEncoding Encoding
+	textEncoding lib.Encoding
 	imageFormat  string
 	pictureType  PictureType
 	description  string
@@ -250,13 +253,23 @@ func (f AttachedPictureFrame) Description() string {
 
 // 4.22.   Linked information
 
+type ItunesCompilationFlagFrame struct {
+	frameBase
+	encoding             lib.Encoding
+	isPartOfACompilation bool
+}
+
+func (f ItunesCompilationFlagFrame) IsPartOfACompilation() bool {
+	return f.isPartOfACompilation
+}
+
 type DeclaredFrame struct {
 	ID          string
 	Description string
 	Type        FrameType
 }
 
-var V22DeclaredFrames = map[string]DeclaredFrame{
+var DeclaredFrames = map[string]DeclaredFrame{
 	"BUF": {"BUF", "Recommended buffer size", TypeUnknown},
 	"CNT": {"CNT", "Play counter", TypeUnknown},
 	"COM": {"COM", "Comments", TypeComments},
@@ -312,7 +325,7 @@ var V22DeclaredFrames = map[string]DeclaredFrame{
 	"TXT": {"TXT", "Lyricist/text writer", TypeTextInformation},
 	"TXX": {"TXX", "User defined text information frame", TypeUnknown},
 	"TYE": {"TYE", "Year", TypeTextInformation},
-	"TCP": {"TCP", "Part of a compilation", TypeUnknown}, // iTunes http://id3.org/iTunes%20Compilation%20Flag
+	"TCP": {"TCP", "Part of a compilation", TypeiTunesCompilationFlag},
 
 	"UFI": {"UFI", "Unique file identifier", TypeUniqueFileIdentifier},
 	"ULT": {"ULT", "Unsychronized lyric/text transcription", TypeUnsychronisedLyricsOrTextTranscription},
@@ -331,16 +344,16 @@ type V22 struct {
 	frames []Frame
 }
 
-// NewID3V22 will read file and return id3v2.2 tag reader
-func NewID3V22(f io.ReadSeeker) (*V22, error) {
-	header := make([]byte, V2HeaderSize)
+// New will read file and return id3v2.2 tag reader
+func New(f io.ReadSeeker) (*V22, error) {
+	header := make([]byte, HeaderSize)
 	n, err := f.Read(header)
 	if err != nil {
 		return nil, err
 	}
 
-	if n != V2HeaderSize {
-		return nil, fmt.Errorf("must read '%d' bytes, but read '%d'", V2HeaderSize, n)
+	if n != HeaderSize {
+		return nil, fmt.Errorf("must read '%d' bytes, but read '%d'", HeaderSize, n)
 	}
 
 	if string(header[:3]) != "ID3" {
@@ -352,22 +365,22 @@ func NewID3V22(f io.ReadSeeker) (*V22, error) {
 	}
 
 	frames := make([]Frame, 0)
-	framesSize := int(uint32(header[9]) + uint32(header[8])<<8 + uint32(header[7])<<16 + uint32(header[6])<<32)
+	framesSize := lib.ByteToInt(header[6:10])
 
 	for t := 0; t < framesSize; {
-		frameHeader := make([]byte, V2FrameHeaderSize)
+		frameHeader := make([]byte, FrameHeaderSize)
 		n, err = f.Read(frameHeader)
 		if err != nil {
 			return nil, err
 		}
-		// FIXME
-		if frameHeader[0]+frameHeader[1]+frameHeader[2] == 0 {
-			break
-		}
 		t += n
 
 		frameID := string(frameHeader[:3])
-		frameSize := int(uint32(frameHeader[5]) + uint32(frameHeader[4])<<8 + uint32(frameHeader[3])<<16)
+		if !regexp.MustCompile(`^[0-9A-Z]+$`).MatchString(frameID) {
+			break
+		}
+
+		frameSize := lib.ByteToInt(frameHeader[3:6])
 		frameBody := make([]byte, frameSize)
 		n, err = f.Read(frameBody)
 		if err != nil {
@@ -380,7 +393,7 @@ func NewID3V22(f io.ReadSeeker) (*V22, error) {
 			size: frameSize,
 		}
 
-		df, ok := V22DeclaredFrames[string(frameID)]
+		df, ok := DeclaredFrames[string(frameID)]
 		if !ok {
 			frame := UnknownFrame{
 				frameBase: frameBase,
@@ -394,8 +407,8 @@ func NewID3V22(f io.ReadSeeker) (*V22, error) {
 		case TypeTextInformation:
 			frame := TextInformationFrame{
 				frameBase: frameBase,
-				encoding:  Encodings[frameBody[0]],
-				text:      toUTF8(frameBody[1:], Encodings[frameBody[0]]),
+				encoding:  lib.Encodings[frameBody[0]],
+				text:      lib.ToUTF8(frameBody[1:], lib.Encodings[frameBody[0]]),
 			}
 			frames = append(frames, frame)
 		case TypeURLLink:
@@ -407,14 +420,14 @@ func NewID3V22(f io.ReadSeeker) (*V22, error) {
 		case TypeAttachedPicture:
 			frame := AttachedPictureFrame{
 				frameBase:    frameBase,
-				textEncoding: Encodings[frameBody[0]],
+				textEncoding: lib.Encodings[frameBody[0]],
 				imageFormat:  string(frameBody[1:4]),
 				pictureType:  PictureType(frameBody[4]),
 			}
-			for i := 5; i < frameSize; i++ {
+			for i := 5; i < frameSize; i+=frame.textEncoding.Size {
 				if frameBody[i] == 0 {
-					frame.description = toUTF8(frameBody[5:i], frame.textEncoding)
-					frame.pictureData = frameBody[i+1:] // TODO: why 1 byte???
+					frame.description = lib.ToUTF8(frameBody[5:i], frame.textEncoding)
+					frame.pictureData = frameBody[i+frame.textEncoding.Size:]
 					break
 				}
 			}
@@ -422,14 +435,14 @@ func NewID3V22(f io.ReadSeeker) (*V22, error) {
 		case TypeUnsychronisedLyricsOrTextTranscription:
 			frame := UnsynchronisedLyricsOrTextTranscriptionFrame{
 				frameBase:    frameBase,
-				textEncoding: Encodings[frameBody[0]],
+				textEncoding: lib.Encodings[frameBody[0]],
 				language:     string(frameBody[1:4]),
 			}
 
-			for i := 4; i < frameSize; i++ {
+			for i := 4; i < frameSize; i+=frame.textEncoding.Size {
 				if frameBody[i] == 0 {
-					frame.contentDescriptor = string(frameBody[4:i])
-					frame.lyricsOrText = toUTF8(frameBody[i+2:], frame.textEncoding)
+					frame.contentDescriptor = lib.ToUTF8(frameBody[4:i], frame.textEncoding)
+					frame.lyricsOrText = lib.ToUTF8(frameBody[i+frame.textEncoding.Size:], frame.textEncoding)
 					break
 				}
 			}
@@ -437,16 +450,23 @@ func NewID3V22(f io.ReadSeeker) (*V22, error) {
 		case TypeComments:
 			frame := CommentsFrame{
 				frameBase:    frameBase,
-				textEncoding: Encodings[frameBody[0]],
+				textEncoding: lib.Encodings[frameBody[0]],
 				language:     string(frameBody[1:4]),
 			}
 
-			for i := 4; i < frameSize; i++ {
+			for i := 4; i < frameSize; i+=frame.textEncoding.Size {
 				if frameBody[i] == 0 {
-					frame.shortContentDescription = toUTF8(frameBody[4:i], frame.textEncoding)
-					frame.theActualText = toUTF8(frameBody[i+2:], frame.textEncoding)
+					frame.shortContentDescription = lib.ToUTF8(frameBody[4:i], frame.textEncoding)
+					frame.theActualText = lib.ToUTF8(frameBody[i+frame.textEncoding.Size:], frame.textEncoding)
 					break
 				}
+			}
+			frames = append(frames, frame)
+		case TypeiTunesCompilationFlag:
+			frame := ItunesCompilationFlagFrame{
+				frameBase:            frameBase,
+				encoding:             lib.Encodings[frameBody[0]],
+				isPartOfACompilation: len(frameBody) > 1 && string(frameBody[1]) == "1",
 			}
 			frames = append(frames, frame)
 		default:
