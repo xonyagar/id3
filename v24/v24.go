@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/xonyagar/id3/lib"
 	"image"
 	"image/jpeg"
 	"image/png"
 	"io"
 	"regexp"
+
+	"github.com/xonyagar/id3/lib"
 )
 
 // HeaderSize is size of ID3v2.4 tag header
@@ -24,6 +25,7 @@ const (
 	TypeUnknown FrameType = iota
 	TypeUniqueFileIdentifier
 	TypeTextInformation
+	TypeUserDefinedTextInformation
 	TypeURLLink
 	TypeInvolvedPeopleList
 	TypeMusicCDIdentifier
@@ -97,6 +99,21 @@ type TextInformationFrame struct {
 
 func (f TextInformationFrame) Text() string {
 	return f.text
+}
+
+type UserDefinedTextInformationFrame struct {
+	frameBase
+	encoding    lib.Encoding
+	description string
+	value       string
+}
+
+func (f UserDefinedTextInformationFrame) Description() string {
+	return f.description
+}
+
+func (f UserDefinedTextInformationFrame) Value() string {
+	return f.value
 }
 
 type TermOfUseFrame struct {
@@ -367,7 +384,7 @@ var DeclaredFrames = map[string]DeclaredFrame{
 	"TSSE": {"TSSE", "Software/Hardware and settings used for encoding", TypeTextInformation},
 	"TSST": {"TSST", "Set subtitle", TypeTextInformation},
 
-	"TXXX": {"TXXX", "User defined text information frame", TypeUnknown},
+	"TXXX": {"TXXX", "User defined text information frame", TypeUserDefinedTextInformation},
 
 	"UFID": {"UFID", "Unique file identifier", TypeUnknown},
 	"USER": {"USER", "Terms of use", TypeUnknown},
@@ -464,6 +481,21 @@ func New(f io.ReadSeeker) (*V24, error) {
 				text:      lib.ToUTF8(frameBody[1:], lib.Encodings[frameBody[0]]),
 			}
 			frames = append(frames, frame)
+		case TypeUserDefinedTextInformation:
+			frame := UserDefinedTextInformationFrame{
+				frameBase: frameBase,
+				encoding:  lib.Encodings[frameBody[0]],
+			}
+
+			for i := 1; i < frameSize; i += frame.encoding.Size {
+				if frameBody[i] == 0 {
+					frame.description = lib.ToUTF8(frameBody[1:i], frame.encoding)
+					frame.value = lib.ToUTF8(frameBody[i+frame.encoding.Size:], frame.encoding)
+					break
+				}
+			}
+
+			frames = append(frames, frame)
 		case TypeURLLink:
 			frame := URLLinkFrame{
 				frameBase: frameBase,
@@ -480,7 +512,7 @@ func New(f io.ReadSeeker) (*V24, error) {
 					frame.mimeType = string(frameBody[1:i])
 					frame.pictureType = PictureType(frameBody[i+1])
 
-					for j := i + 2; j < frameSize; j+=frame.textEncoding.Size {
+					for j := i + 2; j < frameSize; j += frame.textEncoding.Size {
 						if frameBody[j] == 0 {
 							frame.description = lib.ToUTF8(frameBody[i+2:j], frame.textEncoding)
 							frame.pictureData = frameBody[j+frame.textEncoding.Size:]
@@ -500,7 +532,7 @@ func New(f io.ReadSeeker) (*V24, error) {
 				language:     string(frameBody[1:4]),
 			}
 
-			for i := 4; i < frameSize; i+=frame.textEncoding.Size {
+			for i := 4; i < frameSize; i += frame.textEncoding.Size {
 				if frameBody[i] == 0 {
 					frame.contentDescriptor = lib.ToUTF8(frameBody[4:i], frame.textEncoding)
 					frame.lyricsOrText = lib.ToUTF8(frameBody[i+frame.textEncoding.Size:], frame.textEncoding)
@@ -515,7 +547,7 @@ func New(f io.ReadSeeker) (*V24, error) {
 				language:     string(frameBody[1:4]),
 			}
 
-			for i := 4; i < frameSize; i+=frame.textEncoding.Size {
+			for i := 4; i < frameSize; i += frame.textEncoding.Size {
 				if frameBody[i] == 0 {
 					frame.shortContentDescription = lib.ToUTF8(frameBody[4:i], frame.textEncoding)
 					frame.theActualText = lib.ToUTF8(frameBody[i+frame.textEncoding.Size:], frame.textEncoding)
@@ -533,9 +565,9 @@ func New(f io.ReadSeeker) (*V24, error) {
 			frames = append(frames, frame)
 		case TypePopularimeter:
 			frame := PopularimeterFrame{
-				frameBase:     frameBase,
+				frameBase: frameBase,
 			}
-			for i:= 0; i < framesSize; i++ {
+			for i := 0; i < framesSize; i++ {
 				if frameBody[i] == 0 {
 					frame.emailToUser = string(frameBody[:i])
 					frame.rating = frameBody[i+1]

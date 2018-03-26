@@ -8,8 +8,9 @@ import (
 
 type Encoding struct {
 	Title string
-	Size int
+	Size  int
 }
+
 var Encodings = []Encoding{
 	{"ISO-8859-1", 1},
 	{"UTF-16", 2},

@@ -8,8 +8,9 @@ import (
 	"image/jpeg"
 	"image/png"
 	"io"
-	"github.com/xonyagar/id3/lib"
 	"regexp"
+
+	"github.com/xonyagar/id3/lib"
 )
 
 // HeaderSize is size of ID3v2.2 tag header
@@ -21,7 +22,7 @@ const FrameHeaderSize = 6
 type FrameType int
 
 const (
-	TypeUnknown                                FrameType = iota
+	TypeUnknown FrameType = iota
 	TypeUniqueFileIdentifier
 	TypeTextInformation
 	TypeURLLink
@@ -192,7 +193,7 @@ func (f CommentsFrame) TheActualText() string {
 type PictureType int
 
 const (
-	PictureTypeOther                     PictureType = iota
+	PictureTypeOther PictureType = iota
 	PictureType32x32
 	PictureTypeOtherFileIcon
 	PictureTypeCoverFront
@@ -424,7 +425,7 @@ func New(f io.ReadSeeker) (*V22, error) {
 				imageFormat:  string(frameBody[1:4]),
 				pictureType:  PictureType(frameBody[4]),
 			}
-			for i := 5; i < frameSize; i+=frame.textEncoding.Size {
+			for i := 5; i < frameSize; i += frame.textEncoding.Size {
 				if frameBody[i] == 0 {
 					frame.description = lib.ToUTF8(frameBody[5:i], frame.textEncoding)
 					frame.pictureData = frameBody[i+frame.textEncoding.Size:]
@@ -439,7 +440,7 @@ func New(f io.ReadSeeker) (*V22, error) {
 				language:     string(frameBody[1:4]),
 			}
 
-			for i := 4; i < frameSize; i+=frame.textEncoding.Size {
+			for i := 4; i < frameSize; i += frame.textEncoding.Size {
 				if frameBody[i] == 0 {
 					frame.contentDescriptor = lib.ToUTF8(frameBody[4:i], frame.textEncoding)
 					frame.lyricsOrText = lib.ToUTF8(frameBody[i+frame.textEncoding.Size:], frame.textEncoding)
@@ -454,7 +455,7 @@ func New(f io.ReadSeeker) (*V22, error) {
 				language:     string(frameBody[1:4]),
 			}
 
-			for i := 4; i < frameSize; i+=frame.textEncoding.Size {
+			for i := 4; i < frameSize; i += frame.textEncoding.Size {
 				if frameBody[i] == 0 {
 					frame.shortContentDescription = lib.ToUTF8(frameBody[4:i], frame.textEncoding)
 					frame.theActualText = lib.ToUTF8(frameBody[i+frame.textEncoding.Size:], frame.textEncoding)
