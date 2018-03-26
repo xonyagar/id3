@@ -138,11 +138,47 @@ func (f EventTimingCodesFrame) TimeStampFormat() TimeStampFormat {
 
 // 4.8.   Synced tempo codes
 
-// 4.9.   Unsychronised lyrics/text transcription
+type UnsynchronisedLyricsOrTextTranscriptionFrame struct {
+	frameBase
+	textEncoding      Encoding
+	language          string
+	contentDescriptor string
+	lyricsOrText      string
+}
+
+func (f UnsynchronisedLyricsOrTextTranscriptionFrame) Language() string {
+	return f.language
+}
+
+func (f UnsynchronisedLyricsOrTextTranscriptionFrame) ContentDescriptor() string {
+	return f.contentDescriptor
+}
+
+func (f UnsynchronisedLyricsOrTextTranscriptionFrame) LyricsOrText() string {
+	return f.lyricsOrText
+}
 
 // 4.10.   Synchronised lyrics/text
 
-// 4.11.   Comments
+type CommentsFrame struct {
+	frameBase
+	textEncoding            Encoding
+	language                string
+	shortContentDescription string
+	theActualText           string
+}
+
+func (f CommentsFrame) Language() string {
+	return f.language
+}
+
+func (f CommentsFrame) ShortContentDescription() string {
+	return f.shortContentDescription
+}
+
+func (f CommentsFrame) TheActualText() string {
+	return f.theActualText
+}
 
 // 4.12.   Relative volume adjustment
 
@@ -223,7 +259,7 @@ type DeclaredFrame struct {
 var V22DeclaredFrames = map[string]DeclaredFrame{
 	"BUF": {"BUF", "Recommended buffer size", TypeUnknown},
 	"CNT": {"CNT", "Play counter", TypeUnknown},
-	"COM": {"COM", "Comments", TypeUnknown},
+	"COM": {"COM", "Comments", TypeComments},
 	"CRA": {"CRA", "Audio encryption", TypeUnknown},
 	"CRM": {"CRM", "Encrypted meta frame", TypeUnknown},
 	"ETC": {"ETC", "Event timing codes", TypeUnknown},
@@ -276,10 +312,10 @@ var V22DeclaredFrames = map[string]DeclaredFrame{
 	"TXT": {"TXT", "Lyricist/text writer", TypeTextInformation},
 	"TXX": {"TXX", "User defined text information frame", TypeUnknown},
 	"TYE": {"TYE", "Year", TypeTextInformation},
-	"TCP": {"TCP", "Part of a compilation", TypeUnknown}, // iTunes
+	"TCP": {"TCP", "Part of a compilation", TypeUnknown}, // iTunes http://id3.org/iTunes%20Compilation%20Flag
 
 	"UFI": {"UFI", "Unique file identifier", TypeUniqueFileIdentifier},
-	"ULT": {"ULT", "Unsychronized lyric/text transcription", TypeUnknown},
+	"ULT": {"ULT", "Unsychronized lyric/text transcription", TypeUnsychronisedLyricsOrTextTranscription},
 
 	"WAF": {"WAF", "Official audio file webpage", TypeURLLink},
 	"WAR": {"WAR", "Official artist/performer webpage", TypeURLLink},
@@ -358,8 +394,8 @@ func NewID3V22(f io.ReadSeeker) (*V22, error) {
 		case TypeTextInformation:
 			frame := TextInformationFrame{
 				frameBase: frameBase,
-				encoding:  Encoding(frameBody[0]),
-				text:      toUTF8(frameBody[1:], Encoding(frameBody[0])),
+				encoding:  Encodings[frameBody[0]],
+				text:      toUTF8(frameBody[1:], Encodings[frameBody[0]]),
 			}
 			frames = append(frames, frame)
 		case TypeURLLink:
@@ -371,14 +407,44 @@ func NewID3V22(f io.ReadSeeker) (*V22, error) {
 		case TypeAttachedPicture:
 			frame := AttachedPictureFrame{
 				frameBase:    frameBase,
-				textEncoding: Encoding(frameBody[0]),
+				textEncoding: Encodings[frameBody[0]],
 				imageFormat:  string(frameBody[1:4]),
 				pictureType:  PictureType(frameBody[4]),
 			}
 			for i := 5; i < frameSize; i++ {
 				if frameBody[i] == 0 {
 					frame.description = toUTF8(frameBody[5:i], frame.textEncoding)
-					frame.pictureData = frameBody[i+1:]
+					frame.pictureData = frameBody[i+1:] // TODO: why 1 byte???
+					break
+				}
+			}
+			frames = append(frames, frame)
+		case TypeUnsychronisedLyricsOrTextTranscription:
+			frame := UnsynchronisedLyricsOrTextTranscriptionFrame{
+				frameBase:    frameBase,
+				textEncoding: Encodings[frameBody[0]],
+				language:     string(frameBody[1:4]),
+			}
+
+			for i := 4; i < frameSize; i++ {
+				if frameBody[i] == 0 {
+					frame.contentDescriptor = string(frameBody[4:i])
+					frame.lyricsOrText = toUTF8(frameBody[i+2:], frame.textEncoding)
+					break
+				}
+			}
+			frames = append(frames, frame)
+		case TypeComments:
+			frame := CommentsFrame{
+				frameBase:    frameBase,
+				textEncoding: Encodings[frameBody[0]],
+				language:     string(frameBody[1:4]),
+			}
+
+			for i := 4; i < frameSize; i++ {
+				if frameBody[i] == 0 {
+					frame.shortContentDescription = toUTF8(frameBody[4:i], frame.textEncoding)
+					frame.theActualText = toUTF8(frameBody[i+2:], frame.textEncoding)
 					break
 				}
 			}
