@@ -19,6 +19,8 @@ const HeaderSize = 10
 // FrameHeaderSize is size of ID3v2.2 tag frame header
 const FrameHeaderSize = 6
 
+var ErrTagNotFound = errors.New("no id3v2.2.0 tag found")
+
 type FrameType int
 
 const (
@@ -357,12 +359,8 @@ func New(f io.ReadSeeker) (*V22, error) {
 		return nil, fmt.Errorf("must read '%d' bytes, but read '%d'", HeaderSize, n)
 	}
 
-	if string(header[:3]) != "ID3" {
-		return nil, errors.New("no id3v2 tag at the end of file")
-	}
-
-	if header[3] != 2 {
-		return nil, errors.New("file id3v2 version is not 2.2.0")
+	if string(header[:3]) != "ID3" || header[3] != 2 {
+		return nil, ErrTagNotFound
 	}
 
 	frames := make([]Frame, 0)
@@ -484,6 +482,19 @@ func New(f io.ReadSeeker) (*V22, error) {
 	return tag, nil
 }
 
-func (tag V22) Frames() []Frame {
-	return tag.frames
+func (tag V22) Frames(ids ...string) []Frame {
+	if len(ids) == 0 {
+		return tag.frames
+	}
+
+	frames := make([]Frame, 0)
+	for i := range tag.frames {
+		for j := range ids {
+			if tag.frames[i].ID() == ids[j] {
+				frames = append(frames, tag.frames[i])
+			}
+		}
+	}
+
+	return frames
 }

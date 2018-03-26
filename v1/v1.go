@@ -20,6 +20,8 @@ type V1 struct {
 	genreIndex int
 }
 
+var ErrTagNotFound = errors.New("no id3v1 tag at the end of file")
+
 // New will read file and return id3v1 tag reader
 func New(f io.ReadSeeker) (*V1, error) {
 	_, err := f.Seek(-TagSize, io.SeekEnd)
@@ -38,7 +40,7 @@ func New(f io.ReadSeeker) (*V1, error) {
 	}
 
 	if string(b[:3]) != "TAG" {
-		return nil, errors.New("no id3v1 tag at the end of file")
+		return nil, ErrTagNotFound
 	}
 
 	tag := V1{}
