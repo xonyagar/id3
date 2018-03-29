@@ -9,8 +9,8 @@ import (
 // TagSize is size of ID3v1 and ID3v1.1 tag
 const TagSize = 128
 
-// V1 is ID3v1 tag reader
-type V1 struct {
+// Tag is ID3v1 tag reader
+type Tag struct {
 	title      string
 	artist     string
 	album      string
@@ -23,7 +23,7 @@ type V1 struct {
 var ErrTagNotFound = errors.New("no id3v1 tag at the end of file")
 
 // New will read file and return id3v1 tag reader
-func New(f io.ReadSeeker) (*V1, error) {
+func New(f io.ReadSeeker) (*Tag, error) {
 	_, err := f.Seek(-TagSize, io.SeekEnd)
 	if err != nil {
 		return nil, err
@@ -43,7 +43,7 @@ func New(f io.ReadSeeker) (*V1, error) {
 		return nil, ErrTagNotFound
 	}
 
-	tag := V1{}
+	tag := Tag{}
 	for i := 3; i < 33; i++ {
 		if b[i] == 0 {
 			break
@@ -95,37 +95,37 @@ func New(f io.ReadSeeker) (*V1, error) {
 }
 
 // Title will return id3v1 title
-func (tag V1) Title() string {
+func (tag Tag) Title() string {
 	return tag.title
 }
 
 // Artist will return id3v1 artist
-func (tag V1) Artist() string {
+func (tag Tag) Artist() string {
 	return tag.artist
 }
 
 // Album will return id3v1 album
-func (tag V1) Album() string {
+func (tag Tag) Album() string {
 	return tag.album
 }
 
 // Year will return id3v1 year
-func (tag V1) Year() string {
+func (tag Tag) Year() string {
 	return tag.year
 }
 
 // Comment will return id3v1 or id3v1.1 comment
-func (tag V1) Comment() string {
+func (tag Tag) Comment() string {
 	return tag.comment
 }
 
 // AlbumTrack will return id3v1.1 album track
-func (tag V1) AlbumTrack() string {
+func (tag Tag) AlbumTrack() string {
 	return tag.albumTrack
 }
 
 // Genre will return id3v1 genre title
-func (tag V1) Genre() string {
+func (tag Tag) Genre() string {
 	if tag.genreIndex < len(Genres) {
 		return Genres[tag.genreIndex]
 	}

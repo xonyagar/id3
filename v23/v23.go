@@ -9,6 +9,8 @@ import (
 	"image/png"
 	"io"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/xonyagar/id3/lib"
 )
@@ -396,13 +398,17 @@ var DeclaredFrames = map[string]DeclaredFrame{
 	"WFED": {"WFED", "Podcast URL", TypeURLLink},
 }
 
-// V23 is ID3v2.3 tag reader
-type V23 struct {
-	frames []Frame
+// Tag is ID3v2.3 tag reader
+type Tag struct {
+	size                      int
+	flagUnsynchronisation     bool
+	flagExtendedHeader        bool
+	flagExperimentalIndicator bool
+	frames                    []Frame
 }
 
 // New will read file and return id3v2.3 tag reader
-func New(f io.ReadSeeker) (*V23, error) {
+func New(f io.ReadSeeker) (*Tag, error) {
 	header := make([]byte, HeaderSize)
 	n, err := f.Read(header)
 	if err != nil {
@@ -418,6 +424,7 @@ func New(f io.ReadSeeker) (*V23, error) {
 	}
 
 	frames := make([]Frame, 0)
+	flags := header[5]
 	framesSize := lib.ByteToInt(header[6:10])
 
 	for t := 0; t < framesSize; {
@@ -430,11 +437,15 @@ func New(f io.ReadSeeker) (*V23, error) {
 
 		frameID := string(frameHeader[:4])
 		if !regexp.MustCompile(`^[0-9A-Z]+$`).MatchString(frameID) {
-			break
+			if frameHeader[0] == 0 {
+				// Padding
+				break
+			}
+			return nil, errors.New("error on reading frames")
 		}
 
 		frameSize := lib.ByteToInt(frameHeader[4:8])
-		// TODO: get flags
+		// TODO: get frame flags
 		frameBody := make([]byte, frameSize)
 		n, err = f.Read(frameBody)
 		if err != nil {
@@ -572,12 +583,16 @@ func New(f io.ReadSeeker) (*V23, error) {
 		}
 	}
 
-	tag := new(V23)
+	tag := new(Tag)
 	tag.frames = frames
+	tag.size = framesSize
+	tag.flagUnsynchronisation = flags&128 == 128
+	tag.flagExtendedHeader = flags&64 == 64
+	tag.flagExperimentalIndicator = flags&32 == 32
 	return tag, nil
 }
 
-func (tag V23) Frames(ids ...string) []Frame {
+func (tag Tag) Frames(ids ...string) []Frame {
 	if len(ids) == 0 {
 		return tag.frames
 	}
@@ -592,4 +607,97 @@ func (tag V23) Frames(ids ...string) []Frame {
 	}
 
 	return frames
+}
+
+func (tag Tag) Title() string {
+	frames := tag.Frames("TIT2")
+	if len(frames) > 0 {
+		frame, ok := frames[0].(TextInformationFrame)
+		if ok {
+			return frame.Text()
+		}
+	}
+
+	return ""
+}
+
+func (tag Tag) Artists() []string {
+	artists := make([]string, 0)
+	frames := tag.Frames("TPE1")
+	if len(frames) > 0 {
+		for i := range frames {
+			frame, ok := frames[i].(TextInformationFrame)
+			if ok {
+				artists = append(artists, strings.Split(frame.Text(), "/")...)
+			}
+		}
+	}
+
+	return artists
+}
+
+func (tag Tag) Album() string {
+	frames := tag.Frames("TALB")
+	if len(frames) > 0 {
+		frame, ok := frames[0].(TextInformationFrame)
+		if ok {
+			return frame.Text()
+		}
+	}
+
+	return ""
+}
+
+func (tag Tag) AlbumArtist() string {
+	frames := tag.Frames("TPE2")
+	if len(frames) > 0 {
+		frame, ok := frames[0].(TextInformationFrame)
+		if ok {
+			return frame.Text()
+		}
+	}
+
+	return ""
+}
+
+func (tag Tag) Year() string {
+	frames := tag.Frames("TYER")
+	if len(frames) > 0 {
+		frame, ok := frames[0].(TextInformationFrame)
+		if ok {
+			return frame.Text()
+		}
+	}
+
+	return ""
+}
+
+func (tag Tag) TrackNumberAndPosition() (int, int) {
+	frames := tag.Frames("TRCK")
+	trk, pos := 0, 0
+	if len(frames) > 0 {
+		frame, ok := frames[0].(TextInformationFrame)
+		if ok {
+			t := strings.Split(frame.Text(), "/")
+			if len(t) > 0 {
+				trk, _ = strconv.Atoi(t[0])
+			}
+			if len(t) > 1 {
+				pos, _ = strconv.Atoi(t[1])
+			}
+		}
+	}
+
+	return trk, pos
+}
+
+func (tag Tag) AttachedPictures() []AttachedPictureFrame {
+	frames := tag.Frames("APIC")
+	pics := make([]AttachedPictureFrame, 0)
+	for i := range frames {
+		if pic, ok := frames[i].(AttachedPictureFrame); ok {
+			pics = append(pics, pic)
+		}
+	}
+	return pics
 }

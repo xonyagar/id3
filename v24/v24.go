@@ -9,6 +9,8 @@ import (
 	"image/png"
 	"io"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/xonyagar/id3/lib"
 )
@@ -58,8 +60,16 @@ type Frame interface {
 }
 
 type frameBase struct {
-	id   string
-	size int
+	id                        string
+	size                      int
+	flagTagAlterPreservation  bool
+	flagFileAlterPreservation bool
+	flagReadOnly              bool
+	flagGroupingIdentity      bool
+	flagCompression           bool
+	flagEncryption            bool
+	flagUnsynchronisation     bool
+	flagDataLengthIndicator   bool
 }
 
 func (f frameBase) ID() string {
@@ -404,8 +414,8 @@ var DeclaredFrames = map[string]DeclaredFrame{
 	"TCMP": {"TCMP", "Part of a compilation", TypeUnknown},
 }
 
-// V24 is ID3v2.4 tag reader
-type V24 struct {
+// Tag is ID3v2.4 tag reader
+type Tag struct {
 	frames                    []Frame
 	Size                      int
 	UnsynchronisationFlag     bool
@@ -415,7 +425,7 @@ type V24 struct {
 }
 
 // New will read file and return id3v2.4 tag reader
-func New(f io.ReadSeeker) (*V24, error) {
+func New(f io.ReadSeeker) (*Tag, error) {
 	header := make([]byte, HeaderSize)
 	n, err := f.Read(header)
 	if err != nil {
@@ -444,11 +454,15 @@ func New(f io.ReadSeeker) (*V24, error) {
 
 		frameID := string(frameHeader[:4])
 		if !regexp.MustCompile(`^[0-9A-Z]+$`).MatchString(frameID) {
-			break
+			if frameHeader[0] == 0 {
+				// Padding
+				break
+			}
+			return nil, errors.New("error on reading frames")
 		}
 
 		frameSize := lib.ByteToInt(frameHeader[4:8])
-		// TODO: Frame Flags
+
 		frameBody := make([]byte, frameSize)
 		n, err = f.Read(frameBody)
 		if err != nil {
@@ -459,6 +473,14 @@ func New(f io.ReadSeeker) (*V24, error) {
 		frameBase := frameBase{
 			id:   frameID,
 			size: frameSize,
+			flagTagAlterPreservation:  frameHeader[8]&64 == 64,
+			flagFileAlterPreservation: frameHeader[8]&32 == 32,
+			flagReadOnly:              frameHeader[8]&16 == 16,
+			flagGroupingIdentity:      frameHeader[9]&64 == 64,
+			flagCompression:           frameHeader[9]&8 == 8,
+			flagEncryption:            frameHeader[9]&4 == 4,
+			flagUnsynchronisation:     frameHeader[9]&2 == 2,
+			flagDataLengthIndicator:   frameHeader[9]&1 == 1,
 		}
 
 		df, ok := DeclaredFrames[string(frameID)]
@@ -583,18 +605,18 @@ func New(f io.ReadSeeker) (*V24, error) {
 		}
 	}
 
-	tag := new(V24)
+	tag := new(Tag)
 	tag.frames = frames
 	tag.Size = framesSize
 	// Flags
-	tag.UnsynchronisationFlag = flag&128 == 1
-	tag.ExtendedHeaderFlag = flag&64 == 1
-	tag.ExperimentalIndicatorFlag = flag&32 == 1
-	tag.FooterPresentFlag = flag&16 == 1
+	tag.UnsynchronisationFlag = flag&128 == 128
+	tag.ExtendedHeaderFlag = flag&64 == 64
+	tag.ExperimentalIndicatorFlag = flag&32 == 32
+	tag.FooterPresentFlag = flag&16 == 16
 	return tag, nil
 }
 
-func (tag V24) Frames(ids ...string) []Frame {
+func (tag Tag) Frames(ids ...string) []Frame {
 	if len(ids) == 0 {
 		return tag.frames
 	}
@@ -609,4 +631,97 @@ func (tag V24) Frames(ids ...string) []Frame {
 	}
 
 	return frames
+}
+
+func (tag Tag) Title() string {
+	frames := tag.Frames("TIT2")
+	if len(frames) > 0 {
+		frame, ok := frames[0].(TextInformationFrame)
+		if ok {
+			return frame.Text()
+		}
+	}
+
+	return ""
+}
+
+func (tag Tag) Artists() []string {
+	artists := make([]string, 0)
+	frames := tag.Frames("TPE1")
+	if len(frames) > 0 {
+		for i := range frames {
+			frame, ok := frames[i].(TextInformationFrame)
+			if ok {
+				artists = append(artists, strings.Split(frame.Text(), "/")...)
+			}
+		}
+	}
+
+	return artists
+}
+
+func (tag Tag) Album() string {
+	frames := tag.Frames("TALB")
+	if len(frames) > 0 {
+		frame, ok := frames[0].(TextInformationFrame)
+		if ok {
+			return frame.Text()
+		}
+	}
+
+	return ""
+}
+
+func (tag Tag) AlbumArtist() string {
+	frames := tag.Frames("TPE2")
+	if len(frames) > 0 {
+		frame, ok := frames[0].(TextInformationFrame)
+		if ok {
+			return frame.Text()
+		}
+	}
+
+	return ""
+}
+
+func (tag Tag) Year() string {
+	frames := tag.Frames("TDRC")
+	if len(frames) > 0 {
+		frame, ok := frames[0].(TextInformationFrame)
+		if ok {
+			return frame.Text()
+		}
+	}
+
+	return ""
+}
+
+func (tag Tag) TrackNumberAndPosition() (int, int) {
+	frames := tag.Frames("TRCK")
+	trk, pos := 0, 0
+	if len(frames) > 0 {
+		frame, ok := frames[0].(TextInformationFrame)
+		if ok {
+			t := strings.Split(frame.Text(), "/")
+			if len(t) > 0 {
+				trk, _ = strconv.Atoi(t[0])
+			}
+			if len(t) > 1 {
+				pos, _ = strconv.Atoi(t[1])
+			}
+		}
+	}
+
+	return trk, pos
+}
+
+func (tag Tag) AttachedPictures() []AttachedPictureFrame {
+	frames := tag.Frames("APIC")
+	pics := make([]AttachedPictureFrame, 0)
+	for i := range frames {
+		if pic, ok := frames[i].(AttachedPictureFrame); ok {
+			pics = append(pics, pic)
+		}
+	}
+	return pics
 }

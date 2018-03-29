@@ -10,10 +10,10 @@ import (
 )
 
 type ID3 struct {
-	V1  *v1.V1
-	V22 *v22.V22
-	V23 *v23.V23
-	V24 *v24.V24
+	V1  *v1.Tag
+	V22 *v22.Tag
+	V23 *v23.Tag
+	V24 *v24.Tag
 }
 
 func New(f io.ReadSeeker) (*ID3, error) {
