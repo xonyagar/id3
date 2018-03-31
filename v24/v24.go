@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/xonyagar/id3/lib"
+	"github.com/xonyagar/id3/v1"
 )
 
 // HeaderSize is size of ID3v2.4 tag header
@@ -672,16 +673,19 @@ func (tag Tag) Album() string {
 	return ""
 }
 
-func (tag Tag) AlbumArtist() string {
+func (tag Tag) AlbumArtists() []string {
+	albumArtists := make([]string, 0)
 	frames := tag.Frames("TPE2")
 	if len(frames) > 0 {
-		frame, ok := frames[0].(TextInformationFrame)
-		if ok {
-			return frame.Text()
+		for i := range frames {
+			frame, ok := frames[i].(TextInformationFrame)
+			if ok {
+				albumArtists = append(albumArtists, strings.Split(frame.Text(), "/")...)
+			}
 		}
 	}
 
-	return ""
+	return albumArtists
 }
 
 func (tag Tag) Year() string {
@@ -724,4 +728,60 @@ func (tag Tag) AttachedPictures() []AttachedPictureFrame {
 		}
 	}
 	return pics
+}
+
+func genreProcess(s string) string {
+	idxs := regexp.MustCompile("[(][0-9]+[)]").FindStringIndex(s)
+	if len(s[idxs[1]:]) > 0 && s[idxs[1]] != 0 {
+		return s[idxs[1]:]
+	}
+	id, err := strconv.Atoi(strings.Trim(s[idxs[0]:idxs[1]], "()"))
+	if err == nil {
+		if len(v1.Genres) > id {
+			return v1.Genres[id]
+		}
+	}
+	return ""
+}
+
+func (tag Tag) Genres() []string {
+	genres := make([]string, 0)
+	re := regexp.MustCompile("[(][0-9]+[)]")
+
+	frames := tag.Frames("TCON")
+	for i := range frames {
+		if tif, ok := frames[i].(TextInformationFrame); ok {
+			txt := tif.Text()
+			// Check normal number
+			id, err := strconv.Atoi(txt)
+			if err == nil {
+				if len(v1.Genres) > id {
+					genres = append(genres, v1.Genres[id])
+				}
+				continue
+			}
+			// check parentheses type
+			idxs := re.FindAllStringIndex(txt, -1)
+			if len(idxs) > 0 {
+				old := 0
+				for _, idx := range idxs {
+					if old == idx[0] {
+						continue
+					}
+					// txt[old:idx[0]]
+					if genre := genreProcess(txt[old:idx[0]]); genre != "" {
+						genres = append(genres, genre)
+					}
+					old = idx[0]
+				}
+				// txt[old:]
+				if genre := genreProcess(txt[old:]); genre != "" {
+					genres = append(genres, genre)
+				}
+			} else {
+				genres = append(genres, txt)
+			}
+		}
+	}
+	return genres
 }
