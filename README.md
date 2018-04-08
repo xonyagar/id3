@@ -13,6 +13,7 @@ go get -u github.com/xonyagar/id3
 ```
 
 ### CLI
+#### ID3v1
 ```bash
-go install github.com/xonyagar/id3/cmd/id3
+go install github.com/xonyagar/id3/cmd/id3v1
 ```

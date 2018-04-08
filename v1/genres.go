@@ -108,10 +108,10 @@ var Genres = []string{
 	"Chorus",
 	"Easy Listening",
 	"Acoustic",
-
 	"Humour",
 	"Speech",
 	"Chanson",
+
 	"Opera",
 	"Chamber Music",
 	"Sonata",
@@ -129,13 +129,14 @@ var Genres = []string{
 	"Power Ballad",
 	"Rhythmic Soul",
 	"Freestyle",
-
 	"Duet",
 	"Punk Rock",
 	"Drum Solo",
 	"A capella",
 	"Euro-House",
 	"Dance Hall",
+
+	// Unofficial
 	"Goa",
 	"Drum & Bass",
 	"Club-House",
