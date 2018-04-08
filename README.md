@@ -1,5 +1,5 @@
 # ID3
-ID3 Tag Reader
+ID3 Tag Reader & Writer
 
 **Note:** *⚠️ Under Development ⚠️*
 
@@ -17,3 +17,12 @@ go get -u github.com/xonyagar/id3
 ```bash
 go install github.com/xonyagar/id3/cmd/id3v1
 ```
+
+## Milestone
+
+* [x] ID3V1
+* [x] ID3V1.1
+* [ ] ID3V1 Extended
+* [ ] ID3V2.2.0
+* [ ] ID3V2.3.0
+* [ ] ID3V2.4.0
