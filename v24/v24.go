@@ -13,13 +13,13 @@ import (
 	"strings"
 
 	"github.com/xonyagar/id3/lib"
-	"github.com/xonyagar/id3/v1"
+	v1 "github.com/xonyagar/id3/v1"
 )
 
-// HeaderSize is size of ID3v2.4 tag header
+// HeaderSize is size of ID3v2.4 tag header.
 const HeaderSize = 10
 
-// FrameHeaderSize is size of ID3v2.4 tag frame header
+// FrameHeaderSize is size of ID3v2.4 tag frame header.
 const FrameHeaderSize = 10
 
 var ErrTagNotFound = errors.New("no id3v2.4.0 tag found")
@@ -273,9 +273,19 @@ type AttachedPictureFrame struct {
 func (f AttachedPictureFrame) Image() (image.Image, error) {
 	switch f.mimeType {
 	case "image/jpeg":
-		return jpeg.Decode(bytes.NewReader(f.pictureData))
+		res, err := jpeg.Decode(bytes.NewReader(f.pictureData))
+		if err != nil {
+			return nil, fmt.Errorf("error on decode jpeg: %w", err)
+		}
+
+		return res, nil
 	case "image/png":
-		return png.Decode(bytes.NewReader(f.pictureData))
+		res, err := png.Decode(bytes.NewReader(f.pictureData))
+		if err != nil {
+			return nil, fmt.Errorf("error on decode png: %w", err)
+		}
+
+		return res, nil
 	default:
 		return nil, errors.New("invalid image format")
 	}
@@ -285,11 +295,11 @@ func (f AttachedPictureFrame) Description() string {
 	return f.description
 }
 
-// 4.16.   General encapsulated object
+// 4.16. General encapsulated object
 
-// 4.17.   Play counter
+// 4.17. Play counter
 
-// 4.18.   Popularimeter
+// 4.18. Popularimeter.
 type PopularimeterFrame struct {
 	frameBase
 	emailToUser string
@@ -324,7 +334,6 @@ type DeclaredFrame struct {
 }
 
 var DeclaredFrames = map[string]DeclaredFrame{
-
 	"AENC": {"AENC", "Audio encryption", TypeUnknown},
 	"APIC": {"APIC", "Attached picture", TypeAttachedPicture},
 	"ASPI": {"ASPI", "Audio seek point index", TypeUnknown},
@@ -415,7 +424,7 @@ var DeclaredFrames = map[string]DeclaredFrame{
 	"TCMP": {"TCMP", "Part of a compilation", TypeUnknown},
 }
 
-// Tag is ID3v2.4 tag reader
+// Tag is ID3v2.4 tag reader.
 type Tag struct {
 	frames                    []Frame
 	Size                      int
@@ -425,12 +434,13 @@ type Tag struct {
 	FooterPresentFlag         bool
 }
 
-// New will read file and return id3v2.4 tag reader
+// New will read file and return id3v2.4 tag reader.
 func New(f io.ReadSeeker) (*Tag, error) {
 	header := make([]byte, HeaderSize)
+
 	n, err := f.Read(header)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error on read header: %w", err)
 	}
 
 	if n != HeaderSize {
@@ -447,10 +457,12 @@ func New(f io.ReadSeeker) (*Tag, error) {
 
 	for t := 0; t < framesSize; {
 		frameHeader := make([]byte, FrameHeaderSize)
+
 		n, err = f.Read(frameHeader)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error on read frame header")
 		}
+
 		t += n
 
 		frameID := string(frameHeader[:4])
@@ -459,21 +471,24 @@ func New(f io.ReadSeeker) (*Tag, error) {
 				// Padding
 				break
 			}
+
 			return nil, errors.New("error on reading frames")
 		}
 
 		frameSize := lib.ByteToInt(frameHeader[4:8])
 
 		frameBody := make([]byte, frameSize)
+
 		n, err = f.Read(frameBody)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error on read frame body: %w", err)
 		}
+
 		t += n
 
 		frameBase := frameBase{
-			id:   frameID,
-			size: frameSize,
+			id:                        frameID,
+			size:                      frameSize,
 			flagTagAlterPreservation:  frameHeader[8]&64 == 64,
 			flagFileAlterPreservation: frameHeader[8]&32 == 32,
 			flagReadOnly:              frameHeader[8]&16 == 16,
@@ -484,13 +499,14 @@ func New(f io.ReadSeeker) (*Tag, error) {
 			flagDataLengthIndicator:   frameHeader[9]&1 == 1,
 		}
 
-		df, ok := DeclaredFrames[string(frameID)]
+		df, ok := DeclaredFrames[frameID]
 		if !ok {
 			frame := UnknownFrame{
 				frameBase: frameBase,
 				data:      frameBody,
 			}
 			frames = append(frames, frame)
+
 			continue
 		}
 
@@ -512,6 +528,7 @@ func New(f io.ReadSeeker) (*Tag, error) {
 				if frameBody[i] == 0 {
 					frame.description = lib.ToUTF8(frameBody[1:i], frame.encoding)
 					frame.value = lib.ToUTF8(frameBody[i+frame.encoding.Size:], frame.encoding)
+
 					break
 				}
 			}
@@ -522,12 +539,14 @@ func New(f io.ReadSeeker) (*Tag, error) {
 				frameBase: frameBase,
 				url:       string(frameBody),
 			}
+
 			frames = append(frames, frame)
 		case TypeAttachedPicture:
 			frame := AttachedPictureFrame{
 				frameBase:    frameBase,
 				textEncoding: lib.Encodings[frameBody[0]],
 			}
+
 			for i := 1; i < frameSize; i++ {
 				if frameBody[i] == 0 {
 					frame.mimeType = string(frameBody[1:i])
@@ -545,6 +564,7 @@ func New(f io.ReadSeeker) (*Tag, error) {
 					break
 				}
 			}
+
 			frames = append(frames, frame)
 		case TypeUnsychronisedLyricsOrTextTranscription:
 			frame := UnsynchronisedLyricsOrTextTranscriptionFrame{
@@ -557,9 +577,11 @@ func New(f io.ReadSeeker) (*Tag, error) {
 				if frameBody[i] == 0 {
 					frame.contentDescriptor = lib.ToUTF8(frameBody[4:i], frame.textEncoding)
 					frame.lyricsOrText = lib.ToUTF8(frameBody[i+frame.textEncoding.Size:], frame.textEncoding)
+
 					break
 				}
 			}
+
 			frames = append(frames, frame)
 		case TypeComments:
 			frame := CommentsFrame{
@@ -572,9 +594,11 @@ func New(f io.ReadSeeker) (*Tag, error) {
 				if frameBody[i] == 0 {
 					frame.shortContentDescription = lib.ToUTF8(frameBody[4:i], frame.textEncoding)
 					frame.theActualText = lib.ToUTF8(frameBody[i+frame.textEncoding.Size:], frame.textEncoding)
+
 					break
 				}
 			}
+
 			frames = append(frames, frame)
 		case TypeTermOfUse:
 			frame := TermOfUseFrame{
@@ -583,25 +607,30 @@ func New(f io.ReadSeeker) (*Tag, error) {
 				language:      string(frameBody[1:4]),
 				theActualText: lib.ToUTF8(frameBody[4:], lib.Encodings[frameBody[0]]),
 			}
+
 			frames = append(frames, frame)
 		case TypePopularimeter:
 			frame := PopularimeterFrame{
 				frameBase: frameBase,
 			}
+
 			for i := 0; i < framesSize; i++ {
 				if frameBody[i] == 0 {
 					frame.emailToUser = string(frameBody[:i])
 					frame.rating = frameBody[i+1]
 					frame.counter = lib.ByteToInt(frameBody[i+2:])
+
 					break
 				}
 			}
+
 			frames = append(frames, frame)
 		default:
 			frame := UnknownFrame{
 				frameBase: frameBase,
 				data:      frameBody,
 			}
+
 			frames = append(frames, frame)
 		}
 	}
@@ -614,6 +643,7 @@ func New(f io.ReadSeeker) (*Tag, error) {
 	tag.ExtendedHeaderFlag = flag&64 == 64
 	tag.ExperimentalIndicatorFlag = flag&32 == 32
 	tag.FooterPresentFlag = flag&16 == 16
+
 	return tag, nil
 }
 
@@ -649,6 +679,7 @@ func (tag Tag) Title() string {
 func (tag Tag) Artists() []string {
 	artists := make([]string, 0)
 	frames := tag.Frames("TPE1")
+
 	if len(frames) > 0 {
 		for i := range frames {
 			frame, ok := frames[i].(TextInformationFrame)
@@ -676,6 +707,7 @@ func (tag Tag) Album() string {
 func (tag Tag) AlbumArtists() []string {
 	albumArtists := make([]string, 0)
 	frames := tag.Frames("TPE2")
+
 	if len(frames) > 0 {
 		for i := range frames {
 			frame, ok := frames[i].(TextInformationFrame)
@@ -703,13 +735,16 @@ func (tag Tag) Year() string {
 func (tag Tag) TrackNumberAndPosition() (int, int) {
 	frames := tag.Frames("TRCK")
 	trk, pos := 0, 0
+
 	if len(frames) > 0 {
 		frame, ok := frames[0].(TextInformationFrame)
 		if ok {
 			t := strings.Split(frame.Text(), "/")
+
 			if len(t) > 0 {
 				trk, _ = strconv.Atoi(t[0])
 			}
+
 			if len(t) > 1 {
 				pos, _ = strconv.Atoi(t[1])
 			}
@@ -722,11 +757,13 @@ func (tag Tag) TrackNumberAndPosition() (int, int) {
 func (tag Tag) AttachedPictures() []AttachedPictureFrame {
 	frames := tag.Frames("APIC")
 	pics := make([]AttachedPictureFrame, 0)
+
 	for i := range frames {
 		if pic, ok := frames[i].(AttachedPictureFrame); ok {
 			pics = append(pics, pic)
 		}
 	}
+
 	return pics
 }
 
@@ -735,12 +772,14 @@ func genreProcess(s string) string {
 	if len(s[idxs[1]:]) > 0 && s[idxs[1]] != 0 {
 		return s[idxs[1]:]
 	}
+
 	id, err := strconv.Atoi(strings.Trim(s[idxs[0]:idxs[1]], "()"))
 	if err == nil {
 		if len(v1.Genres) > id {
 			return v1.Genres[id]
 		}
 	}
+
 	return ""
 }
 
@@ -758,6 +797,7 @@ func (tag Tag) Genres() []string {
 				if len(v1.Genres) > id {
 					genres = append(genres, v1.Genres[id])
 				}
+
 				continue
 			}
 			// check parentheses type
@@ -772,6 +812,7 @@ func (tag Tag) Genres() []string {
 					if genre := genreProcess(txt[old:idx[0]]); genre != "" {
 						genres = append(genres, genre)
 					}
+
 					old = idx[0]
 				}
 				// txt[old:]
@@ -783,5 +824,6 @@ func (tag Tag) Genres() []string {
 			}
 		}
 	}
+
 	return genres
 }

@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/urfave/cli"
-	"github.com/xonyagar/id3"
-	"log"
 	"os"
 	"strings"
+
+	"github.com/urfave/cli"
+	"github.com/xonyagar/id3"
 )
 
 func main() {
@@ -17,9 +17,8 @@ func main() {
 	app.Version = "0.1.0"
 	app.Commands = commands()
 
-	err := app.Run(os.Args)
-	if err != nil {
-		log.Fatal(err)
+	if err := app.Run(os.Args); err != nil {
+		panic(fmt.Errorf("error on run app: %w", err))
 	}
 }
 
@@ -90,32 +89,34 @@ func commands() []cli.Command {
 func commandTitle(c *cli.Context) error {
 	f, err := os.Open(c.Args().First())
 	if err != nil {
-		return err
+		return fmt.Errorf("error on open file: %w", err)
 	}
-	defer f.Close()
+
+	defer func() { _ = f.Close() }()
 
 	tag, err := id3.New(f)
 	if err != nil {
-		return err
+		return fmt.Errorf("error on new id3: %w", err)
 	}
 
-	if c.Bool("v1") {
+	switch {
+	case c.Bool("v1"):
 		if tag.V1 != nil {
 			fmt.Println(tag.V1.Title())
 		}
-	} else if c.Bool("v22") {
+	case c.Bool("v22"):
 		if tag.V22 != nil {
 			fmt.Println(tag.V22.Title())
 		}
-	} else if c.Bool("v23") {
+	case c.Bool("v23"):
 		if tag.V23 != nil {
 			fmt.Println(tag.V23.Title())
 		}
-	} else if c.Bool("v24") {
+	case c.Bool("v24"):
 		if tag.V24 != nil {
 			fmt.Println(tag.V24.Title())
 		}
-	} else {
+	default:
 		fmt.Println(tag.Title())
 	}
 
@@ -125,32 +126,34 @@ func commandTitle(c *cli.Context) error {
 func commandAlbum(c *cli.Context) error {
 	f, err := os.Open(c.Args().First())
 	if err != nil {
-		return err
+		return fmt.Errorf("error on open file: %w", err)
 	}
-	defer f.Close()
+
+	defer func() { _ = f.Close() }()
 
 	tag, err := id3.New(f)
 	if err != nil {
-		return err
+		return fmt.Errorf("error on new id3: %w", err)
 	}
 
-	if c.Bool("v1") {
+	switch {
+	case c.Bool("v1"):
 		if tag.V1 != nil {
 			fmt.Println(tag.V1.Album())
 		}
-	} else if c.Bool("v22") {
+	case c.Bool("v22"):
 		if tag.V22 != nil {
 			fmt.Println(tag.V22.Album())
 		}
-	} else if c.Bool("v23") {
+	case c.Bool("v23"):
 		if tag.V23 != nil {
 			fmt.Println(tag.V23.Album())
 		}
-	} else if c.Bool("v24") {
+	case c.Bool("v24"):
 		if tag.V24 != nil {
 			fmt.Println(tag.V24.Album())
 		}
-	} else {
+	default:
 		fmt.Println(tag.Album())
 	}
 
@@ -160,32 +163,34 @@ func commandAlbum(c *cli.Context) error {
 func commandArtists(c *cli.Context) error {
 	f, err := os.Open(c.Args().First())
 	if err != nil {
-		return err
+		return fmt.Errorf("error on open file: %w", err)
 	}
-	defer f.Close()
+
+	defer func() { _ = f.Close() }()
 
 	tag, err := id3.New(f)
 	if err != nil {
-		return err
+		return fmt.Errorf("error on new id3: %w", err)
 	}
 
-	if c.Bool("v1") {
+	switch {
+	case c.Bool("v1"):
 		if tag.V1 != nil {
 			fmt.Println(tag.V1.Artist())
 		}
-	} else if c.Bool("v22") {
+	case c.Bool("v22"):
 		if tag.V22 != nil {
 			fmt.Println(strings.Join(tag.V22.Artists(), ", "))
 		}
-	} else if c.Bool("v23") {
+	case c.Bool("v23"):
 		if tag.V23 != nil {
 			fmt.Println(strings.Join(tag.V23.Artists(), ", "))
 		}
-	} else if c.Bool("v24") {
+	case c.Bool("v24"):
 		if tag.V24 != nil {
 			fmt.Println(strings.Join(tag.V24.Artists(), ", "))
 		}
-	} else {
+	default:
 		fmt.Println(strings.Join(tag.Artists(), ", "))
 	}
 
@@ -195,66 +200,71 @@ func commandArtists(c *cli.Context) error {
 func commandAlbumArtists(c *cli.Context) error {
 	f, err := os.Open(c.Args().First())
 	if err != nil {
-		return err
+		return fmt.Errorf("error on open file: %w", err)
 	}
-	defer f.Close()
+
+	defer func() { _ = f.Close() }()
 
 	tag, err := id3.New(f)
 	if err != nil {
-		return err
+		return fmt.Errorf("error on new id3: %w", err)
 	}
 
-	if c.Bool("v1") {
+	switch {
+	case c.Bool("v1"):
 		if tag.V1 != nil {
 			fmt.Println(tag.V1.Artist())
 		}
-	} else if c.Bool("v22") {
+	case c.Bool("v22"):
 		if tag.V22 != nil {
 			fmt.Println(strings.Join(tag.V22.AlbumArtists(), ", "))
 		}
-	} else if c.Bool("v23") {
+	case c.Bool("v23"):
 		if tag.V23 != nil {
 			fmt.Println(strings.Join(tag.V23.AlbumArtists(), ", "))
 		}
-	} else if c.Bool("v24") {
+	case c.Bool("v24"):
 		if tag.V24 != nil {
 			fmt.Println(strings.Join(tag.V24.AlbumArtists(), ", "))
 		}
-	} else {
+	default:
 		fmt.Println(strings.Join(tag.Artists(), ", "))
 	}
+
 	return nil
 }
 
 func commandYear(c *cli.Context) error {
 	f, err := os.Open(c.Args().First())
 	if err != nil {
-		return err
+		return fmt.Errorf("error on open file: %w", err)
 	}
-	defer f.Close()
+
+	defer func() { _ = f.Close() }()
 
 	tag, err := id3.New(f)
 	if err != nil {
-		return err
+		return fmt.Errorf("error on new id3: %w", err)
 	}
 
-	if c.Bool("v1") {
+	switch {
+	case c.Bool("v1"):
 		if tag.V1 != nil {
 			fmt.Println(tag.V1.Year())
 		}
-	} else if c.Bool("v22") {
+	case c.Bool("v22"):
 		if tag.V22 != nil {
 			fmt.Println(tag.V22.Year())
 		}
-	} else if c.Bool("v23") {
+	case c.Bool("v23"):
 		if tag.V23 != nil {
 			fmt.Println(tag.V23.Year())
 		}
-	} else if c.Bool("v24") {
+	case c.Bool("v24"):
 		if tag.V24 != nil {
 			fmt.Println(tag.V24.Year())
 		}
-	} else {
+	default:
 		fmt.Println(tag.Album())
 	}
 
@@ -264,13 +274,14 @@ func commandYear(c *cli.Context) error {
 func commandTrackNumberAndPosition(c *cli.Context) error {
 	f, err := os.Open(c.Args().First())
 	if err != nil {
-		return err
+		return fmt.Errorf("error on open file: %w", err)
 	}
-	defer f.Close()
+
+	defer func() { _ = f.Close() }()
 
 	tag, err := id3.New(f)
 	if err != nil {
-		return err
+		return fmt.Errorf("error on new id3: %w", err)
 	}
 
 	a, b := tag.TrackNumberAndPosition()
@@ -282,13 +293,14 @@ func commandTrackNumberAndPosition(c *cli.Context) error {
 func commandGenres(c *cli.Context) error {
 	f, err := os.Open(c.Args().First())
 	if err != nil {
-		return err
+		return fmt.Errorf("error on open file: %w", err)
 	}
-	defer f.Close()
+
+	defer func() { _ = f.Close() }()
 
 	tag, err := id3.New(f)
 	if err != nil {
-		return err
+		return fmt.Errorf("error on new id3: %w", err)
 	}
 
 	fmt.Println(strings.Join(tag.Genres(), ", "))

@@ -36,17 +36,20 @@ func ToUTF8(data []byte, enc Encoding) string {
 
 		lb := len(data)
 		i := 0
+
 		if lb%2 != 0 && data[i] == 0 {
 			i++
 		} else {
 			lb--
 		}
+
 		for ; i < lb; i += 2 {
 			u16s[0] = uint16(data[i]) + (uint16(data[i+1]) << 8)
 			r := utf16.Decode(u16s)
 			n := utf8.EncodeRune(b8buf, r[0])
 			ret.Write(b8buf[:n])
 		}
+
 		return ret.String()
 		// TODO: check other encodings
 	default:

@@ -1,14 +1,16 @@
 package id3
 
 import (
+	"errors"
+	"fmt"
 	"image"
 	"io"
 	"strconv"
 
-	"github.com/xonyagar/id3/v1"
-	"github.com/xonyagar/id3/v22"
-	"github.com/xonyagar/id3/v23"
-	"github.com/xonyagar/id3/v24"
+	v1 "github.com/xonyagar/id3/v1"
+	v22 "github.com/xonyagar/id3/v22"
+	v23 "github.com/xonyagar/id3/v23"
+	v24 "github.com/xonyagar/id3/v24"
 )
 
 type ID3 struct {
@@ -20,29 +22,39 @@ type ID3 struct {
 
 func New(f io.ReadSeeker) (*ID3, error) {
 	tag := new(ID3)
+
 	var err error
 
 	tag.V1, err = v1.New(f)
-	if err != nil && err != v1.ErrTagNotFound {
-		return nil, err
+	if err != nil && !errors.Is(err, v1.ErrTagNotFound) {
+		return nil, fmt.Errorf("error on new v1: %w", err)
 	}
 
-	f.Seek(0, 0)
+	if _, err := f.Seek(0, 0); err != nil {
+		return nil, fmt.Errorf("error on seek: %w", err)
+	}
+
 	tag.V22, err = v22.New(f)
-	if err != nil && err != v22.ErrTagNotFound {
-		return nil, err
+	if err != nil && !errors.Is(err, v22.ErrTagNotFound) {
+		return nil, fmt.Errorf("error on new v2.2: %w", err)
 	}
 
-	f.Seek(0, 0)
+	if _, err := f.Seek(0, 0); err != nil {
+		return nil, fmt.Errorf("error on seek: %w", err)
+	}
+
 	tag.V23, err = v23.New(f)
-	if err != nil && err != v23.ErrTagNotFound {
-		return nil, err
+	if err != nil && !errors.Is(err, v23.ErrTagNotFound) {
+		return nil, fmt.Errorf("error on new v2.3: %w", err)
 	}
 
-	f.Seek(0, 0)
+	if _, err := f.Seek(0, 0); err != nil {
+		return nil, fmt.Errorf("error on seek: %w", err)
+	}
+
 	tag.V24, err = v24.New(f)
-	if err != nil && err != v24.ErrTagNotFound {
-		return nil, err
+	if err != nil && !errors.Is(err, v24.ErrTagNotFound) {
+		return nil, fmt.Errorf("error on new v2.4: %w", err)
 	}
 
 	return tag, nil
@@ -230,6 +242,7 @@ func (t ID3) AttachedPictures() []AttachedPicture {
 			for i := range pics {
 				res[i] = pics[i]
 			}
+
 			return res
 		}
 	}
@@ -240,6 +253,7 @@ func (t ID3) AttachedPictures() []AttachedPicture {
 			for i := range pics {
 				res[i] = pics[i]
 			}
+
 			return res
 		}
 	}
@@ -250,6 +264,7 @@ func (t ID3) AttachedPictures() []AttachedPicture {
 			for i := range pics {
 				res[i] = pics[i]
 			}
+
 			return res
 		}
 	}
